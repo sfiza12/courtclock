@@ -17,9 +17,7 @@ ChartJS.register(
   Legend
 )
 
-// Mock case data - raw values only, U-Score calculated dynamically
-// DSR = Days Since Registration (when case was filed)
-// Time Served = Days accused has been in custody (can be different from DSR)
+// Mock case data
 const rawCases = [
   {
     id: 'CNR2023/001',
@@ -83,7 +81,7 @@ const rawCases = [
     nextHearing: '22 Apr 2026',
     sections: 'IPC Section 420, 406',
     summary: {
-      background: 'Priya Singh, a 45-year-old single mother of two children (ages 12 and 15), was arrested on 15th May 2024 in connection with a property dispute with her former employer. She worked as a domestic helper and was accused of misappropriating household items worth ₹15,000 during her employment. She was initially granted interim bail but it was revoked after 5 months.',
+      background: 'Priya Singh, a 45-year-old single mother of two children (ages 12 and 15), was arrested on 15th May 2024 in connection with a property dispute with her former employer. She worked as a domestic helper and was accused of misappropriating household items worth ₹15,000 during her employment.',
       currentSituation: 'Priya has been in Mumbai Central Prison for 620 days awaiting trial. Her two children are currently staying with her elderly mother (72 years) in a one-room tenement in Dharavi. The children have had to take up part-time work after school to support themselves.',
       legalIssues: 'The bail application has been pending for over 18 months despite the accused being a first-time offender with no flight risk. The delay appears to be primarily due to the complainant\'s influence and repeated adjournments requested by the prosecution.',
       humanImpact: 'The children\'s academic performance has deteriorated significantly. The elder child (15) has been diagnosed with depression. The family survives on ₹4,000/month earned by the grandmother through stitching work. They have not been able to afford a private lawyer.'
@@ -206,10 +204,63 @@ const calculateUScore = (caseData) => {
   return Math.round(uScore)
 }
 
+// Progress Ring Component
+const ProgressRing = ({ score, size = 120, strokeWidth = 8 }) => {
+  const radius = (size - strokeWidth) / 2
+  const circumference = radius * 2 * Math.PI
+  const offset = circumference - (score / 100) * circumference
+  
+  const getColor = (score) => {
+    if (score >= 70) return '#ef4444'
+    if (score >= 50) return '#f59e0b'
+    return '#10b981'
+  }
+
+  return (
+    <div className="relative inline-flex items-center justify-center">
+      <svg width={size} height={size} className="transform -rotate-90">
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke="#1e293b"
+          strokeWidth={strokeWidth}
+          fill="none"
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke={getColor(score)}
+          strokeWidth={strokeWidth}
+          fill="none"
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          className="transition-all duration-1000 ease-out"
+        />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <span className={`text-2xl font-bold ${score >= 70 ? 'text-red-500' : score >= 50 ? 'text-amber-500' : 'text-emerald-500'}`}>
+          {score}
+        </span>
+      </div>
+    </div>
+  )
+}
+
 function App() {
   const [selectedCase, setSelectedCase] = useState(null)
   const [cases, setCases] = useState([])
   const [loading, setLoading] = useState(true)
+  
+  // Filter states
+  const [searchQuery, setSearchQuery] = useState('')
+  const [priorityFilter, setPriorityFilter] = useState('all')
+  const [courtFilter, setCourtFilter] = useState('all')
+  
+  // Theme state
+  const [darkMode, setDarkMode] = useState(true)
 
   // Fetch cases from API (with fallback to mock data)
   useEffect(() => {
@@ -234,6 +285,24 @@ function App() {
         setLoading(false)
       })
   }, [])
+
+  // Filter cases
+  const filteredCases = cases.filter(caseItem => {
+    const matchesSearch = !searchQuery || 
+      caseItem.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      caseItem.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      caseItem.offense.toLowerCase().includes(searchQuery.toLowerCase())
+    
+    const matchesPriority = priorityFilter === 'all' ||
+      (priorityFilter === 'critical' && caseItem.uScore >= 70) ||
+      (priorityFilter === 'medium' && caseItem.uScore >= 50 && caseItem.uScore < 70) ||
+      (priorityFilter === 'low' && caseItem.uScore < 50)
+    
+    const matchesCourt = courtFilter === 'all' || 
+      caseItem.court.includes(courtFilter)
+    
+    return matchesSearch && matchesPriority && matchesCourt
+  })
 
   const getUrgencyColor = (score) => {
     if (score >= 70) return 'from-red-600 to-red-700'
@@ -271,9 +340,14 @@ function App() {
     return 'bg-emerald-500'
   }
 
+  // Dashboard metrics
   const criticalCases = cases.filter(c => c.uScore >= 70).length
   const mediumCases = cases.filter(c => c.uScore >= 50 && c.uScore < 70).length
   const lowCases = cases.filter(c => c.uScore < 50).length
+  const violationCases = cases.filter(c => c.timeServed > c.maxSentence)
+  const totalViolationDays = violationCases.reduce((sum, c) => sum + (c.timeServed - c.maxSentence), 0)
+  const avgPendingDays = Math.round(cases.reduce((sum, c) => sum + c.dsr, 0) / cases.length)
+  const totalAdjournments = cases.reduce((sum, c) => sum + c.adjournments, 0)
 
   // Calculate dimension scores
   const calculateDimensionScores = (caseData) => {
@@ -347,13 +421,82 @@ function App() {
     ]
   }
 
+  // Export to PDF function
+  const exportToPDF = (caseData) => {
+    const content = `
+COURTCLOCK - CASE ANALYSIS REPORT
+================================
+
+Case ID: ${caseData.id}
+Title: ${caseData.title}
+U-Score: ${caseData.uScore} (${getUrgencyLabel(caseData.uScore)} PRIORITY)
+
+CASE DETAILS
+------------
+Court: ${caseData.court}
+Judge: ${caseData.judge}
+Filing Date: ${caseData.filingDate}
+Arrest Date: ${caseData.arrestDate}
+Next Hearing: ${caseData.nextHearing}
+Sections: ${caseData.sections}
+Status: ${caseData.status}
+Offense: ${caseData.offense}
+
+KEY METRICS
+-----------
+Days Since Filing: ${caseData.dsr} days
+Days in Custody: ${caseData.timeServed} days
+Maximum Sentence: ${caseData.maxSentence} days
+Age of Accused: ${caseData.age} years
+Adjournments: ${caseData.adjournments}
+
+CASE SUMMARY
+------------
+Background: ${caseData.summary.background}
+
+Current Situation: ${caseData.summary.currentSituation}
+
+Legal Issues: ${caseData.summary.legalIssues}
+
+Human Impact: ${caseData.summary.humanImpact}
+
+VIOLATIONS & INJUSTICE
+----------------------
+${caseData.injustice.map((item, i) => `${i + 1}. ${item}`).join('\n')}
+
+WHY IMMEDIATE ATTENTION NEEDED
+------------------------------
+${caseData.whyUrgent.map((item, i) => `${i + 1}. ${item}`).join('\n')}
+
+---
+Generated by CourtClock AI-Powered Case Prioritization Engine
+Date: ${new Date().toLocaleDateString()}
+    `
+
+    const blob = new Blob([content], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `CourtClock_${caseData.id.replace('/', '_')}_Report.txt`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
   // Loading state
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center">
         <div className="text-center">
-          <div className="text-5xl mb-4 animate-pulse">⚖️</div>
-          <div className="text-xl text-slate-400">Loading cases...</div>
+          <div className="text-6xl mb-6 animate-bounce">⚖️</div>
+          <div className="text-2xl font-bold text-white mb-2">CourtClock</div>
+          <div className="text-slate-400">Loading cases...</div>
+          <div className="mt-6 flex justify-center gap-1">
+            <div className="w-3 h-3 bg-amber-500 rounded-full animate-pulse"></div>
+            <div className="w-3 h-3 bg-amber-500 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
+            <div className="w-3 h-3 bg-amber-500 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+          </div>
         </div>
       </div>
     )
@@ -363,6 +506,8 @@ function App() {
   if (selectedCase) {
     const dimensions = calculateDimensionScores(selectedCase)
     const totalWeightedScore = dimensions.reduce((sum, d) => sum + d.weightedScore, 0)
+    const daysOverLimit = selectedCase.timeServed - selectedCase.maxSentence
+    const daysUntilViolation = selectedCase.maxSentence - selectedCase.timeServed
 
     const barData = {
       labels: ['Time Served (Custody)', 'Maximum Sentence'],
@@ -385,22 +530,39 @@ function App() {
     }
 
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100">
+      <div className={`min-h-screen ${darkMode ? 'bg-slate-950 text-slate-100' : 'bg-gray-50 text-gray-900'}`}>
         {/* Header */}
-        <header className="bg-slate-900 border-b border-slate-800 px-8 py-5">
+        <header className={`${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-200'} border-b px-8 py-5`}>
           <div className="max-w-7xl mx-auto flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button 
                 onClick={() => setSelectedCase(null)}
-                className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors"
+                className={`flex items-center gap-2 ${darkMode ? 'text-slate-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'} transition-colors`}
               >
                 <span className="text-xl">←</span>
                 <span>Back to Docket</span>
               </button>
             </div>
             <div className="flex items-center gap-6">
+              {/* Theme Toggle */}
+              <button
+                onClick={() => setDarkMode(!darkMode)}
+                className={`p-2 rounded-lg ${darkMode ? 'bg-slate-800 text-yellow-400' : 'bg-gray-200 text-gray-600'}`}
+              >
+                {darkMode ? '☀️' : '🌙'}
+              </button>
+              
+              {/* Export Button */}
+              <button
+                onClick={() => exportToPDF(selectedCase)}
+                className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors"
+              >
+                <span>📄</span>
+                <span>Export Report</span>
+              </button>
+              
               <div className="text-right">
-                <div className="text-xs text-slate-500 mb-1">URGENCY SCORE</div>
+                <div className={`text-xs ${darkMode ? 'text-slate-500' : 'text-gray-500'} mb-1`}>URGENCY SCORE</div>
                 <div className={`text-4xl font-bold ${getUrgencyText(selectedCase.uScore)}`}>
                   U-{selectedCase.uScore}
                 </div>
@@ -412,47 +574,55 @@ function App() {
           </div>
         </header>
 
+        {/* Predictive Alert Banner */}
+        {selectedCase.timeServed > selectedCase.maxSentence ? (
+          <div className="bg-red-600 text-white px-8 py-3 animate-pulse">
+            <div className="max-w-7xl mx-auto flex items-center gap-3">
+              <span className="text-2xl">🚨</span>
+              <span className="font-semibold">CRITICAL ALERT:</span>
+              <span>This accused has been in custody for {daysOverLimit} days BEYOND the maximum sentence. Immediate judicial intervention required under Section 436A CrPC.</span>
+            </div>
+          </div>
+        ) : daysUntilViolation <= 30 ? (
+          <div className="bg-amber-500 text-white px-8 py-3">
+            <div className="max-w-7xl mx-auto flex items-center gap-3">
+              <span className="text-2xl">⚠️</span>
+              <span className="font-semibold">WARNING:</span>
+              <span>If not heard within {daysUntilViolation} days, this case will violate Section 436A CrPC (custody exceeding max sentence).</span>
+            </div>
+          </div>
+        ) : null}
+
         <div className="max-w-7xl mx-auto p-8">
           {/* Case Header */}
-          <div className="bg-slate-900 border border-slate-800 rounded-lg p-8 mb-8">
+          <div className={`${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-200'} border rounded-xl p-8 mb-8 shadow-xl animate-fadeIn`}>
             <div className="flex items-start justify-between mb-6">
               <div>
                 <div className="flex items-center gap-3 mb-3">
-                  <span className="text-xs font-mono text-slate-500 bg-slate-800 px-3 py-1 rounded">{selectedCase.id}</span>
-                  <span className="text-xs text-slate-600">•</span>
-                  <span className="text-xs text-slate-500">{selectedCase.sections}</span>
+                  <span className={`text-xs font-mono ${darkMode ? 'text-slate-500 bg-slate-800' : 'text-gray-500 bg-gray-100'} px-3 py-1 rounded`}>{selectedCase.id}</span>
+                  <span className={`text-xs ${darkMode ? 'text-slate-600' : 'text-gray-400'}`}>•</span>
+                  <span className={`text-xs ${darkMode ? 'text-slate-500' : 'text-gray-500'}`}>{selectedCase.sections}</span>
                 </div>
-                <h2 className="text-3xl font-bold text-white mb-2">{selectedCase.title}</h2>
+                <h2 className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'} mb-2`}>{selectedCase.title}</h2>
                 <p className="text-lg text-amber-500">{selectedCase.offense}</p>
               </div>
-              <div className="text-5xl">⚖️</div>
+              <ProgressRing score={selectedCase.uScore} size={100} strokeWidth={8} />
             </div>
             
             <div className="grid grid-cols-6 gap-4 text-sm">
-              <div className="bg-slate-800/50 rounded-lg p-4">
-                <div className="text-slate-500 text-xs mb-1">Court</div>
-                <div className="font-medium text-slate-200">{selectedCase.court}</div>
-              </div>
-              <div className="bg-slate-800/50 rounded-lg p-4">
-                <div className="text-slate-500 text-xs mb-1">Judge</div>
-                <div className="font-medium text-slate-200">{selectedCase.judge}</div>
-              </div>
-              <div className="bg-slate-800/50 rounded-lg p-4">
-                <div className="text-slate-500 text-xs mb-1">Filing Date</div>
-                <div className="font-medium text-slate-200">{selectedCase.filingDate}</div>
-              </div>
-              <div className="bg-slate-800/50 rounded-lg p-4">
-                <div className="text-slate-500 text-xs mb-1">Arrest Date</div>
-                <div className="font-medium text-slate-200">{selectedCase.arrestDate}</div>
-              </div>
-              <div className="bg-slate-800/50 rounded-lg p-4">
-                <div className="text-slate-500 text-xs mb-1">Status</div>
-                <div className="font-medium text-amber-400">{selectedCase.status}</div>
-              </div>
-              <div className="bg-slate-800/50 rounded-lg p-4">
-                <div className="text-slate-500 text-xs mb-1">Next Hearing</div>
-                <div className="font-medium text-emerald-400">{selectedCase.nextHearing}</div>
-              </div>
+              {[
+                { label: 'Court', value: selectedCase.court },
+                { label: 'Judge', value: selectedCase.judge },
+                { label: 'Filing Date', value: selectedCase.filingDate },
+                { label: 'Arrest Date', value: selectedCase.arrestDate },
+                { label: 'Status', value: selectedCase.status, highlight: 'amber' },
+                { label: 'Next Hearing', value: selectedCase.nextHearing, highlight: 'emerald' }
+              ].map((item, idx) => (
+                <div key={idx} className={`${darkMode ? 'bg-slate-800/50' : 'bg-gray-50'} rounded-lg p-4`}>
+                  <div className={`${darkMode ? 'text-slate-500' : 'text-gray-500'} text-xs mb-1`}>{item.label}</div>
+                  <div className={`font-medium ${item.highlight === 'amber' ? 'text-amber-400' : item.highlight === 'emerald' ? 'text-emerald-400' : darkMode ? 'text-slate-200' : 'text-gray-800'}`}>{item.value}</div>
+                </div>
+              ))}
             </div>
           </div>
 
@@ -461,58 +631,48 @@ function App() {
             <div className="lg:col-span-2 space-y-8">
               
               {/* Detailed Case Summary */}
-              <div className="bg-slate-900 border border-slate-800 rounded-lg p-8">
-                <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-3">
+              <div className={`${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-200'} border rounded-xl p-8 shadow-xl`}>
+                <h3 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'} mb-6 flex items-center gap-3`}>
                   <span className="text-2xl">📋</span> Detailed Case Summary
                 </h3>
                 
                 <div className="space-y-6">
-                  <div>
-                    <h4 className="text-sm font-semibold text-amber-500 uppercase tracking-wider mb-3">Background</h4>
-                    <p className="text-slate-300 leading-relaxed">
-                      {selectedCase.summary.background}
-                    </p>
-                  </div>
-                  
-                  <div>
-                    <h4 className="text-sm font-semibold text-amber-500 uppercase tracking-wider mb-3">Current Situation</h4>
-                    <p className="text-slate-300 leading-relaxed">
-                      {selectedCase.summary.currentSituation}
-                    </p>
-                  </div>
-                  
-                  <div>
-                    <h4 className="text-sm font-semibold text-red-500 uppercase tracking-wider mb-3">Legal Issues</h4>
-                    <p className="text-slate-300 leading-relaxed">
-                      {selectedCase.summary.legalIssues}
-                    </p>
-                  </div>
-                  
-                  <div>
-                    <h4 className="text-sm font-semibold text-amber-500 uppercase tracking-wider mb-3">Human Impact</h4>
-                    <p className="text-slate-300 leading-relaxed">
-                      {selectedCase.summary.humanImpact}
-                    </p>
-                  </div>
+                  {[
+                    { label: 'Background', content: selectedCase.summary.background, color: 'amber' },
+                    { label: 'Current Situation', content: selectedCase.summary.currentSituation, color: 'amber' },
+                    { label: 'Legal Issues', content: selectedCase.summary.legalIssues, color: 'red' },
+                    { label: 'Human Impact', content: selectedCase.summary.humanImpact, color: 'amber' }
+                  ].map((section, idx) => (
+                    <div key={idx} className="animate-slideIn" style={{ animationDelay: `${idx * 0.1}s` }}>
+                      <h4 className={`text-sm font-semibold ${section.color === 'red' ? 'text-red-500' : 'text-amber-500'} uppercase tracking-wider mb-3`}>{section.label}</h4>
+                      <p className={`${darkMode ? 'text-slate-300' : 'text-gray-600'} leading-relaxed`}>
+                        {section.content}
+                      </p>
+                    </div>
+                  ))}
                 </div>
               </div>
 
               {/* 6-Dimensional Analysis */}
-              <div className="bg-slate-900 border border-slate-800 rounded-lg p-8">
-                <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-3">
+              <div className={`${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-200'} border rounded-xl p-8 shadow-xl`}>
+                <h3 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'} mb-6 flex items-center gap-3`}>
                   <span className="text-2xl">🎯</span> 
                   6-Dimensional Urgency Analysis
                 </h3>
                 
                 <div className="space-y-4">
                   {dimensions.map((dimension, idx) => (
-                    <div key={idx} className="bg-slate-800/30 border border-slate-800 rounded-lg p-4">
+                    <div 
+                      key={idx} 
+                      className={`${darkMode ? 'bg-slate-800/30 border-slate-800' : 'bg-gray-50 border-gray-200'} border rounded-lg p-4 hover:scale-[1.02] transition-transform`}
+                      style={{ animationDelay: `${idx * 0.1}s` }}
+                    >
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-3">
                           <span className="text-xl">{dimension.icon}</span>
                           <div>
-                            <div className="font-semibold text-white">{dimension.name}</div>
-                            <div className="text-xs text-slate-500">{dimension.description}</div>
+                            <div className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{dimension.name}</div>
+                            <div className={`text-xs ${darkMode ? 'text-slate-500' : 'text-gray-500'}`}>{dimension.description}</div>
                           </div>
                         </div>
                         <div className="text-right">
@@ -521,16 +681,16 @@ function App() {
                       </div>
 
                       {/* Progress Bar */}
-                      <div className="relative h-3 bg-slate-700 rounded-full overflow-hidden mb-2">
+                      <div className={`relative h-3 ${darkMode ? 'bg-slate-700' : 'bg-gray-200'} rounded-full overflow-hidden mb-2`}>
                         <div 
-                          className={`h-full ${getProgressColor(dimension.score)} transition-all duration-700`}
+                          className={`h-full ${getProgressColor(dimension.score)} transition-all duration-1000`}
                           style={{ width: `${dimension.score}%` }}
                         ></div>
                       </div>
 
-                      <div className="flex items-center justify-between text-xs text-slate-500">
-                        <span>Score: <span className="text-slate-300 font-medium">{dimension.score.toFixed(1)}/100</span></span>
-                        <span>Weight: <span className="text-slate-300 font-medium">{dimension.weight}%</span></span>
+                      <div className={`flex items-center justify-between text-xs ${darkMode ? 'text-slate-500' : 'text-gray-500'}`}>
+                        <span>Score: <span className={`${darkMode ? 'text-slate-300' : 'text-gray-700'} font-medium`}>{dimension.score.toFixed(1)}/100</span></span>
+                        <span>Weight: <span className={`${darkMode ? 'text-slate-300' : 'text-gray-700'} font-medium`}>{dimension.weight}%</span></span>
                         <span>Contribution: <span className="text-amber-500 font-semibold">+{dimension.weightedScore.toFixed(2)}</span></span>
                       </div>
                     </div>
@@ -538,23 +698,23 @@ function App() {
                 </div>
 
                 {/* Total Score */}
-                <div className="mt-6 bg-slate-800 rounded-lg p-6 border border-amber-500/30">
+                <div className={`mt-6 ${darkMode ? 'bg-slate-800' : 'bg-gray-100'} rounded-lg p-6 border border-amber-500/30`}>
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">Calculated U-Score</div>
+                      <div className={`text-xs ${darkMode ? 'text-slate-500' : 'text-gray-500'} uppercase tracking-wider mb-1`}>Calculated U-Score</div>
                       <div className={`text-5xl font-bold ${getUrgencyText(selectedCase.uScore)}`}>
                         {Math.round(totalWeightedScore)}
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-xs text-slate-500 mb-2">Priority Classification</div>
+                      <div className={`text-xs ${darkMode ? 'text-slate-500' : 'text-gray-500'} mb-2`}>Priority Classification</div>
                       <span className={`px-4 py-2 rounded text-sm font-bold bg-gradient-to-r ${getUrgencyColor(selectedCase.uScore)} text-white`}>
                         {getUrgencyLabel(selectedCase.uScore)}
                       </span>
                     </div>
                   </div>
-                  <div className="mt-4 pt-4 border-t border-slate-700">
-                    <div className="text-xs text-slate-600 font-mono">
+                  <div className={`mt-4 pt-4 border-t ${darkMode ? 'border-slate-700' : 'border-gray-300'}`}>
+                    <div className={`text-xs ${darkMode ? 'text-slate-600' : 'text-gray-500'} font-mono`}>
                       Formula: (DSR×0.30) + (Age×0.20) + (Rights×0.20) + (Vulnerability×0.15) + (Severity×0.10) + (Adjournments×0.05)
                     </div>
                   </div>
@@ -562,11 +722,11 @@ function App() {
               </div>
 
               {/* Liberty Index */}
-              <div className="bg-slate-900 border border-slate-800 rounded-lg p-8">
-                <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-3">
+              <div className={`${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-200'} border rounded-xl p-8 shadow-xl`}>
+                <h3 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'} mb-2 flex items-center gap-3`}>
                   <span className="text-2xl">⏱️</span> Liberty Index
                 </h3>
-                <p className="text-slate-500 text-sm mb-6">Comparing time spent in custody vs maximum possible sentence</p>
+                <p className={`${darkMode ? 'text-slate-500' : 'text-gray-500'} text-sm mb-6`}>Comparing time spent in custody vs maximum possible sentence</p>
                 
                 <div className="h-64">
                   <Bar 
@@ -577,11 +737,11 @@ function App() {
                       scales: {
                         x: { 
                           beginAtZero: true,
-                          ticks: { color: '#94a3b8' },
-                          grid: { color: '#1e293b' }
+                          ticks: { color: darkMode ? '#94a3b8' : '#6b7280' },
+                          grid: { color: darkMode ? '#1e293b' : '#e5e7eb' }
                         },
                         y: {
-                          ticks: { color: '#e2e8f0', font: { weight: '500' } },
+                          ticks: { color: darkMode ? '#e2e8f0' : '#374151', font: { weight: '500' } },
                           grid: { display: false }
                         }
                       },
@@ -592,13 +752,13 @@ function App() {
                   />
                 </div>
 
-                <div className="mt-4 flex items-center justify-between text-sm">
+                <div className={`mt-4 flex items-center justify-between text-sm`}>
                   <div>
-                    <span className="text-slate-500">Case Filed: </span>
-                    <span className="text-slate-300 font-medium">{selectedCase.dsr} days ago</span>
+                    <span className={`${darkMode ? 'text-slate-500' : 'text-gray-500'}`}>Case Filed: </span>
+                    <span className={`${darkMode ? 'text-slate-300' : 'text-gray-700'} font-medium`}>{selectedCase.dsr} days ago</span>
                   </div>
                   <div>
-                    <span className="text-slate-500">Time in Custody: </span>
+                    <span className={`${darkMode ? 'text-slate-500' : 'text-gray-500'}`}>Time in Custody: </span>
                     <span className="text-amber-500 font-medium">{selectedCase.timeServed} days</span>
                   </div>
                 </div>
@@ -621,178 +781,353 @@ function App() {
 
             {/* Right Column */}
             <div className="space-y-6">
+              {/* AI Insights */}
+              <div className="bg-gradient-to-br from-amber-500/20 to-amber-600/10 border border-amber-500/30 rounded-xl p-6 shadow-xl">
+                <h3 className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'} mb-4 flex items-center gap-2`}>
+                  <span>🤖</span> AI Insights
+                </h3>
+                <div className={`text-sm ${darkMode ? 'text-slate-300' : 'text-gray-600'} space-y-3`}>
+                  <p><strong className="text-amber-400">Why U-{selectedCase.uScore}?</strong></p>
+                  <p>This case scores high because of {dimensions.sort((a, b) => b.weightedScore - a.weightedScore).slice(0, 2).map(d => d.name.toLowerCase()).join(' and ')}.</p>
+                  <p className="text-amber-400 font-medium">
+                    {selectedCase.uScore >= 70 
+                      ? '⚠️ Immediate hearing recommended within 7 days.'
+                      : selectedCase.uScore >= 50
+                      ? '📌 Schedule hearing within 30 days.'
+                      : '✓ Normal case flow is acceptable.'}
+                  </p>
+                </div>
+              </div>
+
               {/* Why Urgent */}
-              <div className="bg-slate-900 border border-slate-800 rounded-lg p-6">
-                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+              <div className={`${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-200'} border rounded-xl p-6 shadow-xl`}>
+                <h3 className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'} mb-4 flex items-center gap-2`}>
                   <span>⚡</span> Why Immediate Attention Needed
                 </h3>
                 <ul className="space-y-3">
                   {selectedCase.whyUrgent.map((reason, idx) => (
                     <li key={idx} className="flex items-start gap-3 text-sm">
                       <span className="text-amber-500 mt-0.5">→</span>
-                      <span className="text-slate-300">{reason}</span>
+                      <span className={darkMode ? 'text-slate-300' : 'text-gray-600'}>{reason}</span>
                     </li>
                   ))}
                 </ul>
               </div>
 
               {/* Violations */}
-              <div className={`border rounded-lg p-6 ${getUrgencyBg(selectedCase.uScore)}`}>
-                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+              <div className={`border rounded-xl p-6 shadow-xl ${getUrgencyBg(selectedCase.uScore)}`}>
+                <h3 className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'} mb-4 flex items-center gap-2`}>
                   <span>⚠️</span> Violations & Injustice
                 </h3>
                 <ul className="space-y-2">
                   {selectedCase.injustice.map((item, idx) => (
-                    <li key={idx} className="flex items-start gap-2 text-sm bg-slate-900/50 p-3 rounded">
+                    <li key={idx} className={`flex items-start gap-2 text-sm ${darkMode ? 'bg-slate-900/50' : 'bg-white/50'} p-3 rounded`}>
                       <span className="text-red-500 mt-0.5">•</span>
-                      <span className="text-slate-300">{item}</span>
+                      <span className={darkMode ? 'text-slate-300' : 'text-gray-600'}>{item}</span>
                     </li>
                   ))}
                 </ul>
               </div>
 
               {/* Key Metrics */}
-              <div className="bg-slate-900 border border-slate-800 rounded-lg p-6">
-                <h3 className="text-lg font-bold text-white mb-4">📊 Key Metrics</h3>
+              <div className={`${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-200'} border rounded-xl p-6 shadow-xl`}>
+                <h3 className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'} mb-4`}>📊 Key Metrics</h3>
                 <div className="space-y-3">
-                  <div className="flex justify-between items-center p-3 bg-slate-800/50 rounded">
-                    <span className="text-slate-400 text-sm">Days Since Filing</span>
-                    <span className="text-xl font-bold text-white">{selectedCase.dsr}</span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 bg-slate-800/50 rounded">
-                    <span className="text-slate-400 text-sm">Days in Custody</span>
-                    <span className="text-xl font-bold text-amber-500">{selectedCase.timeServed}</span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 bg-slate-800/50 rounded">
-                    <span className="text-slate-400 text-sm">Age of Accused</span>
-                    <span className="text-xl font-bold text-white">{selectedCase.age} yrs</span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 bg-slate-800/50 rounded">
-                    <span className="text-slate-400 text-sm">Adjournments</span>
-                    <span className="text-xl font-bold text-red-500">{selectedCase.adjournments}</span>
-                  </div>
+                  {[
+                    { label: 'Days Since Filing', value: selectedCase.dsr, color: 'white' },
+                    { label: 'Days in Custody', value: selectedCase.timeServed, color: 'amber' },
+                    { label: 'Age of Accused', value: `${selectedCase.age} yrs`, color: 'white' },
+                    { label: 'Adjournments', value: selectedCase.adjournments, color: 'red' }
+                  ].map((metric, idx) => (
+                    <div key={idx} className={`flex justify-between items-center p-3 ${darkMode ? 'bg-slate-800/50' : 'bg-gray-50'} rounded`}>
+                      <span className={`${darkMode ? 'text-slate-400' : 'text-gray-500'} text-sm`}>{metric.label}</span>
+                      <span className={`text-xl font-bold ${metric.color === 'amber' ? 'text-amber-500' : metric.color === 'red' ? 'text-red-500' : darkMode ? 'text-white' : 'text-gray-900'}`}>{metric.value}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
 
               {/* Footer Note */}
-              <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-6 text-center">
+              <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-6 text-center">
                 <div className="text-3xl mb-2">👨‍⚖️</div>
-                <div className="text-sm font-semibold text-white">AI-Assisted Analysis</div>
-                <div className="text-xs text-slate-400 mt-1">
+                <div className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>AI-Assisted Analysis</div>
+                <div className={`text-xs ${darkMode ? 'text-slate-400' : 'text-gray-500'} mt-1`}>
                   Final decision rests with the Hon'ble Court
                 </div>
               </div>
             </div>
           </div>
         </div>
+
+        <style>{`
+          @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+          @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-10px); }
+            to { opacity: 1; transform: translateX(0); }
+          }
+          .animate-fadeIn { animation: fadeIn 0.5s ease-out; }
+          .animate-slideIn { animation: slideIn 0.4s ease-out forwards; opacity: 0; }
+        `}</style>
       </div>
     )
   }
 
   // List View
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
+    <div className={`min-h-screen ${darkMode ? 'bg-slate-950 text-slate-100' : 'bg-gray-50 text-gray-900'}`}>
+      {/* Alert Banner */}
+      {violationCases.length > 0 && (
+        <div className="bg-red-600 text-white px-8 py-3">
+          <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl animate-pulse">🚨</span>
+              <span className="font-semibold">ALERT:</span>
+              <span>{violationCases.length} case(s) violating Section 436A CrPC - {totalViolationDays} total days over limit - Immediate action required!</span>
+            </div>
+            <button 
+              onClick={() => setPriorityFilter('critical')}
+              className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded text-sm"
+            >
+              View All →
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
-      <header className="bg-slate-900 border-b border-slate-800 px-8 py-6">
+      <header className={`${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-200'} border-b px-8 py-6`}>
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-4">
-              <div className="text-5xl">⚖️</div>
+              <div className="text-5xl animate-bounce">⚖️</div>
               <div>
-                <h1 className="text-3xl font-bold text-white">
+                <h1 className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                   CourtClock
                 </h1>
-                <p className="text-slate-500 text-sm">
+                <p className={`${darkMode ? 'text-slate-500' : 'text-gray-500'} text-sm`}>
                   AI-Powered Case Prioritization Engine
                 </p>
               </div>
             </div>
+            
+            {/* Theme Toggle */}
+            <button
+              onClick={() => setDarkMode(!darkMode)}
+              className={`p-3 rounded-lg ${darkMode ? 'bg-slate-800 text-yellow-400' : 'bg-gray-200 text-gray-600'} hover:scale-110 transition-transform`}
+            >
+              {darkMode ? '☀️' : '🌙'}
+            </button>
           </div>
 
-          {/* Stats */}
-          <div className="grid grid-cols-4 gap-4">
-            <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
-              <div className="text-3xl font-bold text-white">{cases.length}</div>
-              <div className="text-sm text-slate-400">Total Cases</div>
+          {/* Enhanced Stats Dashboard */}
+          <div className="grid grid-cols-6 gap-4">
+            <div className={`${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'} border rounded-xl p-4 hover:scale-105 transition-transform`}>
+              <div className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{cases.length}</div>
+              <div className={`text-sm ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>Total Cases</div>
             </div>
-            <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
+            <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 hover:scale-105 transition-transform">
               <div className="text-3xl font-bold text-red-500">{criticalCases}</div>
               <div className="text-sm text-red-400">Critical</div>
             </div>
-            <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 hover:scale-105 transition-transform">
               <div className="text-3xl font-bold text-amber-500">{mediumCases}</div>
               <div className="text-sm text-amber-400">Medium</div>
             </div>
-            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-4">
+            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 hover:scale-105 transition-transform">
               <div className="text-3xl font-bold text-emerald-500">{lowCases}</div>
               <div className="text-sm text-emerald-400">Low</div>
+            </div>
+            <div className={`${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'} border rounded-xl p-4 hover:scale-105 transition-transform`}>
+              <div className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{avgPendingDays}</div>
+              <div className={`text-sm ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>Avg. Days Pending</div>
+            </div>
+            <div className={`${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'} border rounded-xl p-4 hover:scale-105 transition-transform`}>
+              <div className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{totalAdjournments}</div>
+              <div className={`text-sm ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>Total Adjournments</div>
             </div>
           </div>
         </div>
       </header>
 
       <div className="max-w-7xl mx-auto p-8">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-white">Prioritized Docket</h2>
-          <span className="text-slate-500 text-sm">Sorted by U-Score: Critical → Low</span>
+        {/* Search & Filter Bar */}
+        <div className={`${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-200'} border rounded-xl p-6 mb-6 shadow-xl`}>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            
+            {/* Search Box */}
+            <div className="md:col-span-1">
+              <label className={`text-xs ${darkMode ? 'text-slate-500' : 'text-gray-500'} uppercase tracking-wider mb-2 block`}>Search Cases</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="CNR, Name, Offense..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className={`w-full ${darkMode ? 'bg-slate-800 border-slate-700 text-white placeholder-slate-500' : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400'} border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500`}
+                />
+                <span className={`absolute right-3 top-2.5 ${darkMode ? 'text-slate-500' : 'text-gray-400'}`}>🔍</span>
+              </div>
+            </div>
+
+            {/* Priority Filter */}
+            <div>
+              <label className={`text-xs ${darkMode ? 'text-slate-500' : 'text-gray-500'} uppercase tracking-wider mb-2 block`}>Priority Filter</label>
+              <select
+                value={priorityFilter}
+                onChange={(e) => setPriorityFilter(e.target.value)}
+                className={`w-full ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-gray-50 border-gray-300 text-gray-900'} border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500`}
+              >
+                <option value="all">All Cases</option>
+                <option value="critical">🔴 Critical Only</option>
+                <option value="medium">🟡 Medium Only</option>
+                <option value="low">🟢 Low Only</option>
+              </select>
+            </div>
+
+            {/* Court Filter */}
+            <div>
+              <label className={`text-xs ${darkMode ? 'text-slate-500' : 'text-gray-500'} uppercase tracking-wider mb-2 block`}>Court Filter</label>
+              <select
+                value={courtFilter}
+                onChange={(e) => setCourtFilter(e.target.value)}
+                className={`w-full ${darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-gray-50 border-gray-300 text-gray-900'} border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500`}
+              >
+                <option value="all">All Courts</option>
+                <option value="Patna">District Court, Patna</option>
+                <option value="Mumbai">Sessions Court, Mumbai</option>
+                <option value="Bangalore">Economic Offences Court, Bangalore</option>
+                <option value="Delhi">Criminal Court, Delhi</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Active Filters Display */}
+          {(searchQuery || priorityFilter !== 'all' || courtFilter !== 'all') && (
+            <div className={`mt-4 pt-4 border-t ${darkMode ? 'border-slate-800' : 'border-gray-200'} flex items-center gap-3 flex-wrap`}>
+              <span className={`text-xs ${darkMode ? 'text-slate-500' : 'text-gray-500'}`}>Active Filters:</span>
+              {searchQuery && (
+                <span className="bg-amber-500/10 border border-amber-500/30 text-amber-400 px-3 py-1 rounded-full text-xs">
+                  Search: "{searchQuery}"
+                </span>
+              )}
+              {priorityFilter !== 'all' && (
+                <span className="bg-amber-500/10 border border-amber-500/30 text-amber-400 px-3 py-1 rounded-full text-xs capitalize">
+                  Priority: {priorityFilter}
+                </span>
+              )}
+              {courtFilter !== 'all' && (
+                <span className="bg-amber-500/10 border border-amber-500/30 text-amber-400 px-3 py-1 rounded-full text-xs">
+                  Court: {courtFilter}
+                </span>
+              )}
+              <button
+                onClick={() => {
+                  setSearchQuery('')
+                  setPriorityFilter('all')
+                  setCourtFilter('all')
+                }}
+                className="text-xs text-red-400 hover:text-red-300 underline ml-auto"
+              >
+                Clear All Filters
+              </button>
+            </div>
+          )}
         </div>
 
-        <div className="space-y-4">
-          {cases.map((caseItem, index) => (
-            <div
-              key={caseItem.id}
-              onClick={() => setSelectedCase(caseItem)}
-              className={`group relative bg-slate-900 border ${getUrgencyBorder(caseItem.uScore)} rounded-lg p-6 cursor-pointer transition-all hover:bg-slate-800`}
-            >
-              {/* Priority Badge */}
-              <div className={`absolute -left-3 -top-3 w-10 h-10 bg-gradient-to-br ${getUrgencyColor(caseItem.uScore)} rounded-full flex items-center justify-center font-bold text-white text-sm border-4 border-slate-950`}>
-                {index + 1}
-              </div>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className={`text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>Prioritized Docket</h2>
+          <span className={`${darkMode ? 'text-slate-500' : 'text-gray-500'} text-sm`}>
+            Showing {filteredCases.length} of {cases.length} cases • Sorted by U-Score
+          </span>
+        </div>
 
-              <div className="flex items-center justify-between ml-6">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className="text-xs font-mono text-slate-500">{caseItem.id}</span>
-                    <span className={`px-2 py-1 rounded text-xs font-semibold bg-gradient-to-r ${getUrgencyColor(caseItem.uScore)} text-white`}>
-                      {getUrgencyLabel(caseItem.uScore)}
+        {/* Case List */}
+        {filteredCases.length > 0 ? (
+          <div className="space-y-4">
+            {filteredCases.map((caseItem, index) => (
+              <div
+                key={caseItem.id}
+                onClick={() => setSelectedCase(caseItem)}
+                className={`group relative ${darkMode ? 'bg-slate-900' : 'bg-white'} border ${getUrgencyBorder(caseItem.uScore)} rounded-xl p-6 cursor-pointer transition-all hover:scale-[1.01] hover:shadow-xl ${darkMode ? 'hover:bg-slate-800' : 'hover:bg-gray-50'}`}
+                style={{ animationDelay: `${index * 0.1}s` }}
+              >
+                {/* Priority Badge */}
+                <div className={`absolute -left-3 -top-3 w-10 h-10 bg-gradient-to-br ${getUrgencyColor(caseItem.uScore)} rounded-full flex items-center justify-center font-bold text-white text-sm border-4 ${darkMode ? 'border-slate-950' : 'border-gray-50'} shadow-lg`}>
+                  {index + 1}
+                </div>
+
+                <div className="flex items-center justify-between ml-6">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className={`text-xs font-mono ${darkMode ? 'text-slate-500' : 'text-gray-500'}`}>{caseItem.id}</span>
+                      <span className={`px-2 py-1 rounded text-xs font-semibold bg-gradient-to-r ${getUrgencyColor(caseItem.uScore)} text-white`}>
+                        {getUrgencyLabel(caseItem.uScore)}
+                      </span>
+                      {caseItem.timeServed > caseItem.maxSentence && (
+                        <span className="px-2 py-1 rounded text-xs font-semibold bg-red-500 text-white animate-pulse">
+                          436A VIOLATION
+                        </span>
+                      )}
+                    </div>
+                    <h3 className={`text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'} mb-1 group-hover:text-amber-500 transition-colors`}>{caseItem.title}</h3>
+                    <p className={`${darkMode ? 'text-slate-400' : 'text-gray-500'} mb-3`}>{caseItem.offense}</p>
+                    
+                    <div className={`flex items-center gap-6 text-sm ${darkMode ? 'text-slate-500' : 'text-gray-500'}`}>
+                      <span>Filed: <span className={darkMode ? 'text-slate-300' : 'text-gray-700'}>{caseItem.dsr} days ago</span></span>
+                      <span>Custody: <span className="text-amber-500">{caseItem.timeServed} days</span></span>
+                      <span>Age: <span className={darkMode ? 'text-slate-300' : 'text-gray-700'}>{caseItem.age} yrs</span></span>
+                      <span>Adjournments: <span className="text-red-400">{caseItem.adjournments}</span></span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <ProgressRing score={caseItem.uScore} size={80} strokeWidth={6} />
+                    <div className={`text-2xl ${darkMode ? 'text-slate-600' : 'text-gray-300'} group-hover:text-amber-500 group-hover:translate-x-1 transition-all`}>
+                      →
+                    </div>
+                  </div>
+                </div>
+
+                {caseItem.timeServed > caseItem.maxSentence && (
+                  <div className="mt-4 ml-6 bg-red-500/10 border border-red-500/20 rounded px-4 py-2 flex items-center gap-2">
+                    <span>🚨</span>
+                    <span className="text-sm text-red-400">
+                      Section 436A Violation: Custody ({caseItem.timeServed}d) exceeds max sentence ({caseItem.maxSentence}d) by <strong>{caseItem.timeServed - caseItem.maxSentence} days</strong>
                     </span>
                   </div>
-                  <h3 className="text-xl font-semibold text-white mb-1 group-hover:text-amber-500 transition-colors">{caseItem.title}</h3>
-                  <p className="text-slate-400 mb-3">{caseItem.offense}</p>
-                  
-                  <div className="flex items-center gap-6 text-sm text-slate-500">
-                    <span>Filed: <span className="text-slate-300">{caseItem.dsr} days ago</span></span>
-                    <span>Custody: <span className="text-amber-500">{caseItem.timeServed} days</span></span>
-                    <span>Age: <span className="text-slate-300">{caseItem.age} yrs</span></span>
-                    <span>Adjournments: <span className="text-red-400">{caseItem.adjournments}</span></span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-4">
-                  <div className="text-right">
-                    <div className={`text-4xl font-bold ${getUrgencyText(caseItem.uScore)}`}>
-                      {caseItem.uScore}
-                    </div>
-                    <div className="text-xs text-slate-500">U-Score</div>
-                  </div>
-                  <div className="text-2xl text-slate-600 group-hover:text-amber-500 group-hover:translate-x-1 transition-all">
-                    →
-                  </div>
-                </div>
+                )}
               </div>
-
-              {caseItem.timeServed > caseItem.maxSentence && (
-                <div className="mt-4 ml-6 bg-red-500/10 border border-red-500/20 rounded px-4 py-2 flex items-center gap-2">
-                  <span>🚨</span>
-                  <span className="text-sm text-red-400">
-                    Section 436A Violation: Custody ({caseItem.timeServed}d) exceeds max sentence ({caseItem.maxSentence}d)
-                  </span>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className={`${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-200'} border rounded-xl p-12 text-center`}>
+            <div className="text-5xl mb-4">🔍</div>
+            <div className={`text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'} mb-2`}>No Cases Found</div>
+            <div className={darkMode ? 'text-slate-400' : 'text-gray-500'}>Try adjusting your search or filters</div>
+            <button
+              onClick={() => {
+                setSearchQuery('')
+                setPriorityFilter('all')
+                setCourtFilter('all')
+              }}
+              className="mt-4 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors"
+            >
+              Clear Filters
+            </button>
+          </div>
+        )}
       </div>
+
+      <style>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fadeIn { animation: fadeIn 0.5s ease-out; }
+      `}</style>
     </div>
   )
 }
