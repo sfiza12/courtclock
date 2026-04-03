@@ -24,7 +24,7 @@ const rawCases = [
   {
     id: 'CNR2023/001',
     title: 'State vs. Ramesh Kumar',
-    dsr: 950, // Case filed 950 days ago
+    dsr: 950,
     age: 67,
     rightsViolation: 95,
     vulnerability: 80,
@@ -33,7 +33,7 @@ const rawCases = [
     status: 'Undertrial',
     offense: 'Theft (₹500)',
     maxSentence: 180,
-    timeServed: 850, // In custody for 850 days (arrested 100 days after filing)
+    timeServed: 850,
     court: 'District Court, Patna',
     judge: 'Hon. Justice M.K. Sharma',
     filingDate: '12 Aug 2023',
@@ -66,7 +66,7 @@ const rawCases = [
   {
     id: 'CNR2023/045',
     title: 'State vs. Priya Singh',
-    dsr: 780, // Case filed 780 days ago
+    dsr: 780,
     age: 45,
     rightsViolation: 70,
     vulnerability: 90,
@@ -75,7 +75,7 @@ const rawCases = [
     status: 'Bail Pending',
     offense: 'Property Dispute',
     maxSentence: 365,
-    timeServed: 620, // In custody for 620 days (was on interim bail initially)
+    timeServed: 620,
     court: 'Sessions Court, Mumbai',
     judge: 'Hon. Justice R.K. Patel',
     filingDate: '03 Feb 2024',
@@ -108,7 +108,7 @@ const rawCases = [
   {
     id: 'CNR2024/203',
     title: 'State vs. Anjali Mehta',
-    dsr: 820, // Case filed 820 days ago
+    dsr: 820,
     age: 58,
     rightsViolation: 85,
     vulnerability: 75,
@@ -117,7 +117,7 @@ const rawCases = [
     status: 'Bail Denied',
     offense: 'Financial Fraud (Alleged)',
     maxSentence: 365,
-    timeServed: 720, // In custody for 720 days
+    timeServed: 720,
     court: 'Economic Offences Court, Bangalore',
     judge: 'Hon. Justice S.N. Reddy',
     filingDate: '15 Mar 2024',
@@ -150,7 +150,7 @@ const rawCases = [
   {
     id: 'CNR2024/112',
     title: 'State vs. Vikram Rao',
-    dsr: 200, // Case filed 200 days ago
+    dsr: 200,
     age: 32,
     rightsViolation: 20,
     vulnerability: 30,
@@ -159,7 +159,7 @@ const rawCases = [
     status: 'Trial Ongoing',
     offense: 'Assault (Grievous Hurt)',
     maxSentence: 730,
-    timeServed: 180, // In custody for 180 days (arrested 20 days after filing)
+    timeServed: 180,
     court: 'Criminal Court, Delhi',
     judge: 'Hon. Justice A.K. Verma',
     filingDate: '05 Oct 2025',
@@ -206,70 +206,35 @@ const calculateUScore = (caseData) => {
   return Math.round(uScore)
 }
 
-// State for cases
-const [cases, setCases] = useState([])
-const [loading, setLoading] = useState(true)
-const [error, setError] = useState(null)
-
-// Fetch cases from API
-useEffect(() => {
-  fetch('/api/cases')
-    .then(res => {
-      if (!res.ok) throw new Error('Failed to fetch cases')
-      return res.json()
-    })
-    .then(data => {
-      // Add U-Score to each case and sort
-      const processedCases = data
-        .map(c => ({ ...c, uScore: calculateUScore(c) }))
-        .sort((a, b) => b.uScore - a.uScore)
-      setCases(processedCases)
-      setLoading(false)
-    })
-    .catch(err => {
-      console.error('Error fetching cases:', err)
-      setError(err.message)
-      setLoading(false)
-    })
-}, [])
-
-// Use 'cases' instead of 'mockCases'
-const mockCases = cases
-
 function App() {
   const [selectedCase, setSelectedCase] = useState(null)
+  const [cases, setCases] = useState([])
+  const [loading, setLoading] = useState(true)
 
-    // Loading state
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-5xl mb-4 animate-pulse">⚖️</div>
-          <div className="text-xl text-slate-400">Loading cases...</div>
-        </div>
-      </div>
-    )
-  }
+  // Fetch cases from API (with fallback to mock data)
+  useEffect(() => {
+    fetch('/api/cases')
+      .then(res => {
+        if (!res.ok) throw new Error('Backend not available')
+        return res.json()
+      })
+      .then(data => {
+        const processedCases = data
+          .map(c => ({ ...c, uScore: calculateUScore(c) }))
+          .sort((a, b) => b.uScore - a.uScore)
+        setCases(processedCases)
+        setLoading(false)
+      })
+      .catch(err => {
+        console.warn('API not available, using mock data:', err.message)
+        const processedCases = rawCases
+          .map(c => ({ ...c, uScore: calculateUScore(c) }))
+          .sort((a, b) => b.uScore - a.uScore)
+        setCases(processedCases)
+        setLoading(false)
+      })
+  }, [])
 
-  // Error state
-  if (error) {
-    return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center">
-        <div className="text-center bg-red-500/10 border border-red-500/30 rounded-lg p-8 max-w-md">
-          <div className="text-5xl mb-4">⚠️</div>
-          <div className="text-xl font-bold text-red-400 mb-2">Error Loading Cases</div>
-          <div className="text-slate-400">{error}</div>
-          <button 
-            onClick={() => window.location.reload()}
-            className="mt-4 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    )
-  }
-  
   const getUrgencyColor = (score) => {
     if (score >= 70) return 'from-red-600 to-red-700'
     if (score >= 50) return 'from-amber-500 to-amber-600'
@@ -306,9 +271,9 @@ function App() {
     return 'bg-emerald-500'
   }
 
-  const criticalCases = mockCases.filter(c => c.uScore >= 70).length
-  const mediumCases = mockCases.filter(c => c.uScore >= 50 && c.uScore < 70).length
-  const lowCases = mockCases.filter(c => c.uScore < 50).length
+  const criticalCases = cases.filter(c => c.uScore >= 70).length
+  const mediumCases = cases.filter(c => c.uScore >= 50 && c.uScore < 70).length
+  const lowCases = cases.filter(c => c.uScore < 50).length
 
   // Calculate dimension scores
   const calculateDimensionScores = (caseData) => {
@@ -381,7 +346,19 @@ function App() {
       }
     ]
   }
-   
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-5xl mb-4 animate-pulse">⚖️</div>
+          <div className="text-xl text-slate-400">Loading cases...</div>
+        </div>
+      </div>
+    )
+  }
+
   // Detail View
   if (selectedCase) {
     const dimensions = calculateDimensionScores(selectedCase)
@@ -735,7 +712,7 @@ function App() {
           {/* Stats */}
           <div className="grid grid-cols-4 gap-4">
             <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
-              <div className="text-3xl font-bold text-white">{mockCases.length}</div>
+              <div className="text-3xl font-bold text-white">{cases.length}</div>
               <div className="text-sm text-slate-400">Total Cases</div>
             </div>
             <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
@@ -761,7 +738,7 @@ function App() {
         </div>
 
         <div className="space-y-4">
-          {mockCases.map((caseItem, index) => (
+          {cases.map((caseItem, index) => (
             <div
               key={caseItem.id}
               onClick={() => setSelectedCase(caseItem)}
