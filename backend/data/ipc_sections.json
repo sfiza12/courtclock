@@ -1,0 +1,188 @@
+{
+  "302": {
+    "description": "Murder",
+    "max_sentence_years": 14,
+    "category": "heinous",
+    "severity_score": 1.0
+  },
+  "304": {
+    "description": "Culpable Homicide not amounting to Murder",
+    "max_sentence_years": 10,
+    "category": "heinous",
+    "severity_score": 1.0
+  },
+  "376": {
+    "description": "Rape",
+    "max_sentence_years": 10,
+    "category": "heinous",
+    "severity_score": 1.0
+  },
+  "392": {
+    "description": "Robbery",
+    "max_sentence_years": 10,
+    "category": "serious",
+    "severity_score": 0.7
+  },
+  "395": {
+    "description": "Dacoity",
+    "max_sentence_years": 10,
+    "category": "heinous",
+    "severity_score": 1.0
+  },
+  "396": {
+    "description": "Dacoity with Murder",
+    "max_sentence_years": 14,
+    "category": "heinous",
+    "severity_score": 1.0
+  },
+  "397": {
+    "description": "Robbery or Dacoity with attempt to cause death or grievous hurt",
+    "max_sentence_years": 10,
+    "category": "heinous",
+    "severity_score": 1.0
+  },
+  "420": {
+    "description": "Cheating and dishonestly inducing delivery of property",
+    "max_sentence_years": 7,
+    "category": "serious",
+    "severity_score": 0.7
+  },
+  "406": {
+    "description": "Criminal Breach of Trust",
+    "max_sentence_years": 3,
+    "category": "moderate",
+    "severity_score": 0.4
+  },
+  "409": {
+    "description": "Criminal Breach of Trust by public servant",
+    "max_sentence_years": 10,
+    "category": "serious",
+    "severity_score": 0.7
+  },
+  "379": {
+    "description": "Theft",
+    "max_sentence_years": 3,
+    "category": "moderate",
+    "severity_score": 0.4
+  },
+  "380": {
+    "description": "Theft in dwelling house",
+    "max_sentence_years": 7,
+    "category": "serious",
+    "severity_score": 0.7
+  },
+  "384": {
+    "description": "Extortion",
+    "max_sentence_years": 3,
+    "category": "moderate",
+    "severity_score": 0.4
+  },
+  "323": {
+    "description": "Voluntarily causing hurt",
+    "max_sentence_years": 1,
+    "category": "minor",
+    "severity_score": 0.2
+  },
+  "324": {
+    "description": "Voluntarily causing hurt by dangerous weapons",
+    "max_sentence_years": 3,
+    "category": "moderate",
+    "severity_score": 0.4
+  },
+  "325": {
+    "description": "Voluntarily causing grievous hurt",
+    "max_sentence_years": 7,
+    "category": "serious",
+    "severity_score": 0.7
+  },
+  "326": {
+    "description": "Voluntarily causing grievous hurt by dangerous weapons",
+    "max_sentence_years": 10,
+    "category": "serious",
+    "severity_score": 0.7
+  },
+  "354": {
+    "description": "Assault or criminal force to woman with intent to outrage modesty",
+    "max_sentence_years": 2,
+    "category": "moderate",
+    "severity_score": 0.4
+  },
+  "363": {
+    "description": "Kidnapping",
+    "max_sentence_years": 7,
+    "category": "serious",
+    "severity_score": 0.7
+  },
+  "364": {
+    "description": "Kidnapping for ransom",
+    "max_sentence_years": 10,
+    "category": "heinous",
+    "severity_score": 1.0
+  },
+  "498A": {
+    "description": "Husband or relative of husband subjecting woman to cruelty",
+    "max_sentence_years": 3,
+    "category": "moderate",
+    "severity_score": 0.4
+  },
+  "506": {
+    "description": "Criminal intimidation",
+    "max_sentence_years": 2,
+    "category": "minor",
+    "severity_score": 0.2
+  },
+  "509": {
+    "description": "Word, gesture or act intended to insult modesty of a woman",
+    "max_sentence_years": 1,
+    "category": "minor",
+    "severity_score": 0.2
+  },
+  "138_NI": {
+    "description": "Dishonour of cheque for insufficiency of funds (Negotiable Instruments Act)",
+    "max_sentence_years": 2,
+    "category": "minor",
+    "severity_score": 0.2
+  },
+  "307": {
+    "description": "Attempt to murder",
+    "max_sentence_years": 10,
+    "category": "heinous",
+    "severity_score": 1.0
+  },
+  "308": {
+    "description": "Attempt to commit culpable homicide",
+    "max_sentence_years": 7,
+    "category": "serious",
+    "severity_score": 0.7
+  },
+  "342": {
+    "description": "Wrongful confinement",
+    "max_sentence_years": 1,
+    "category": "minor",
+    "severity_score": 0.2
+  },
+  "419": {
+    "description": "Cheating by personation",
+    "max_sentence_years": 3,
+    "category": "moderate",
+    "severity_score": 0.4
+  },
+  "468": {
+    "description": "Forgery for purpose of cheating",
+    "max_sentence_years": 7,
+    "category": "serious",
+    "severity_score": 0.7
+  },
+  "471": {
+    "description": "Using as genuine a forged document",
+    "max_sentence_years": 7,
+    "category": "serious",
+    "severity_score": 0.7
+  },
+  "120B": {
+    "description": "Criminal conspiracy",
+    "max_sentence_years": 7,
+    "category": "serious",
+    "severity_score": 0.7
+  }
+}

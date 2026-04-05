@@ -1,0 +1,44 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #0F172A;
+  --color-secondary: #64748B;
+  --color-muted: #94A3B8;
+  --color-inverse: #F8FAFC;
+  --color-accent: #2563EB;
+  --color-accent-light: #EFF6FF;
+
+  --color-priority-critical-text: #DC2626;
+  --color-priority-critical-bg: #FEF2F2;
+  --color-priority-critical-border: #FECACA;
+
+  --color-priority-high-text: #D97706;
+  --color-priority-high-bg: #FFFBEB;
+  --color-priority-high-border: #FDE68A;
+
+  --color-priority-medium-text: #2563EB;
+  --color-priority-medium-bg: #EFF6FF;
+  --color-priority-medium-border: #BFDBFE;
+
+  --color-priority-low-text: #16A34A;
+  --color-priority-low-bg: #F0FDF4;
+  --color-priority-low-border: #BBF7D0;
+
+  --color-alert-red: #991B1B;
+
+  --font-inter: 'Inter', sans-serif;
+}
+
+body {
+  font-family: var(--font-inter);
+}
+
+.pulse-ring {
+  animation: pulseRing 2s cubic-bezier(0.455, 0.03, 0.515, 0.955) infinite;
+}
+
+@keyframes pulseRing {
+  0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.35); }
+  70% { box-shadow: 0 0 0 8px rgba(220, 38, 38, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+}
