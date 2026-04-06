@@ -259,6 +259,23 @@ def generate_case(index: int) -> dict:
     # Vulnerability flag — ~20% cases
     vulnerability = 1 if random.random() < 0.20 else 0
 
+    # Generate mock verdicts based on age and hearings
+    previous_verdict_count = 0
+    previous_verdicts_summary = None
+    age_days = (datetime.now() - filing_date).days
+    
+    if age_days > 365 and total_hearings > 5:
+        r = random.random()
+        if r < 0.4:
+            previous_verdict_count = 1
+            previous_verdicts_summary = "Bail denied by Magistrate."
+        elif r < 0.7:
+            previous_verdict_count = 2
+            previous_verdicts_summary = "Bail denied by Magistrate; Remand extended."
+        elif r < 0.8:
+            previous_verdict_count = 3
+            previous_verdicts_summary = "Multiple interim orders passed; key evidentiary hearing postponed."
+
     # Build case number like real Indian ones: TYPE/NNNN/YYYY
     year = filing_date.year
     prefix = "CR" if case_type == "criminal" else "CC"
@@ -266,6 +283,8 @@ def generate_case(index: int) -> dict:
 
     return {
         "case_number": case_number,
+        "previous_verdict_count": previous_verdict_count,
+        "previous_verdicts_summary": previous_verdicts_summary,
         "accused_name": random_name(),
         "crime_section": section,
         "crime_description": description,
@@ -327,6 +346,8 @@ def generate_and_populate(count: int = 300):
             vulnerability_flag=case_data["vulnerability_flag"],
             is_undertrial=case_data["is_undertrial"],
             case_type=case_data["case_type"],
+            previous_verdict_count=case_data["previous_verdict_count"],
+            previous_verdicts_summary=case_data["previous_verdicts_summary"],
             u_score=scores["u_score"],
             dsr_score=scores["dsr_score"],
             age_score=scores["age_score"],

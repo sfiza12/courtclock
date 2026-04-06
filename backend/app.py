@@ -331,7 +331,16 @@ def ai_classify_case(case_id):
         if not case:
             return error_response(f"Case with id {case_id} not found.", 404)
 
-        result = classify_case(case.crime_description or "")
+        # Calculate detention days for the classifier
+        detention_days = 0
+        if case.detention_start_date:
+            detention_days = (datetime.now() - case.detention_start_date).days
+            detention_days = max(detention_days, 0)
+            
+        case_dict = case.to_dict()
+        case_dict["detention_days"] = detention_days
+
+        result = classify_case(case_dict)
 
         # Save to DB
         case.ai_tags = json.dumps(result["tags"])
@@ -353,13 +362,28 @@ def ai_classify_case(case_id):
 def ai_explain_case(case_id):
     """
     GET /api/ai/explain/<id>
-    Return stored AI explanation for a case.
+    Return stored AI explanation for a case. Auto-generates if missing.
     """
     session = get_session()
     try:
         case = session.query(Case).filter(Case.id == case_id).first()
         if not case:
             return error_response(f"Case with id {case_id} not found.", 404)
+
+        # Auto-compute if missing
+        if not case.ai_explanation:
+            detention_days = 0
+            if case.detention_start_date:
+                detention_days = (datetime.now() - case.detention_start_date).days
+                detention_days = max(detention_days, 0)
+                
+            case_dict = case.to_dict()
+            case_dict["detention_days"] = detention_days
+
+            result = classify_case(case_dict)
+            case.ai_tags = json.dumps(result["tags"])
+            case.ai_explanation = result["explanation"]
+            session.commit()
 
         tags = []
         if case.ai_tags:
@@ -370,7 +394,7 @@ def ai_explain_case(case_id):
 
         return success_response({
             "case_id": case_id,
-            "ai_explanation": case.ai_explanation or "No AI analysis available. Run POST /api/ai/classify/{id} first.",
+            "ai_explanation": case.ai_explanation,
             "ai_tags": tags,
         })
     finally:

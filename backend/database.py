@@ -41,6 +41,9 @@ class Case(Base):
     is_undertrial = Column(Boolean, nullable=False, default=True)
     case_type = Column(String(50), nullable=False, default="criminal")
 
+    previous_verdict_count = Column(Integer, nullable=False, default=0)
+    previous_verdicts_summary = Column(Text, nullable=True)
+
     # Composite U-Score and sub-scores
     u_score = Column(Float, nullable=True, default=0.0)
     dsr_score = Column(Float, nullable=True, default=0.0)
@@ -77,6 +80,8 @@ class Case(Base):
             "vulnerability_flag": self.vulnerability_flag,
             "is_undertrial": self.is_undertrial,
             "case_type": self.case_type,
+            "previous_verdict_count": self.previous_verdict_count,
+            "previous_verdicts_summary": self.previous_verdicts_summary,
             "u_score": round(self.u_score, 2) if self.u_score is not None else None,
             "dsr_score": round(self.dsr_score, 4) if self.dsr_score is not None else None,
             "age_score": round(self.age_score, 4) if self.age_score is not None else None,
