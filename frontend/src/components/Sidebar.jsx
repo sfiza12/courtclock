@@ -1,7 +1,15 @@
-import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, ListOrdered, AlertTriangle, Search, BarChart2, Scale } from 'lucide-react';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { LayoutDashboard, ListOrdered, AlertTriangle, Search, BarChart2, Scale, LogOut } from 'lucide-react';
 
 const Sidebar = ({ alertCount = 0 }) => {
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    localStorage.removeItem('courtclock_token');
+    localStorage.removeItem('courtclock_user');
+    navigate('/login');
+  };
+
   const links = [
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
     { name: 'Priority Queue', path: '/queue', icon: ListOrdered },
@@ -64,13 +72,22 @@ const Sidebar = ({ alertCount = 0 }) => {
 
       {/* Bottom Profile */}
       <div className="mt-auto px-6 pb-7">
-        <div className="border-t border-slate-800 pt-6 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-xs font-medium text-slate-300 shrink-0 border border-slate-600">
-            JS
-          </div>
-          <div className="overflow-hidden">
-            <div className="text-[13px] font-medium text-white truncate">Hon. Justice Sharma</div>
-            <div className="text-[11px] text-slate-400 mt-0.5 truncate">Presiding Judge</div>
+        <div className="border-t border-slate-800 pt-6 flex flex-col gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-xs font-medium text-slate-300 shrink-0 border border-slate-600">
+              JS
+            </div>
+            <div className="overflow-hidden flex-1">
+              <div className="text-[13px] font-medium text-white truncate">Hon. Justice</div>
+              <div className="text-[11px] text-slate-400 mt-0.5 truncate">Presiding Judge</div>
+            </div>
+            <button 
+              onClick={handleLogout}
+              className="p-1.5 text-slate-400 hover:text-white rounded-md hover:bg-slate-800 transition-colors"
+              title="Sign out"
+            >
+              <LogOut size={16} />
+            </button>
           </div>
         </div>
       </div>

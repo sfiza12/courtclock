@@ -3,3 +3,5 @@ flask-cors>=4.0.0
 sqlalchemy>=2.0.0
 transformers>=4.30.0
 torch>=2.0.0
+bcrypt
+PyJWT

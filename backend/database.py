@@ -105,6 +105,25 @@ class Case(Base):
         }
 
 
+class User(Base):
+    """Represents a user in the system (e.g., judge, admin)."""
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    email = Column(String(200), unique=True, nullable=False, index=True)
+    password_hash = Column(String(200), nullable=False)
+    role = Column(String(50), nullable=False, default="judge")
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "email": self.email,
+            "role": self.role,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
 def init_db():
     """Create all tables if they don't exist."""
     Base.metadata.create_all(engine)
