@@ -61,3 +61,22 @@ export const fetchExplanation = async (id) => {
     return null;
   }
 };
+
+export const judgeLogin = async (email, password) => {
+  try {
+    const res = await axios.post(`${BASE}/auth/judge-login`, { email, password });
+    return res.data;
+  } catch (error) {
+    throw error.response?.data?.error || "Login failed.";
+  }
+};
+
+export const judgeSignup = async (email, password) => {
+  try {
+    const res = await axios.post(`${BASE}/auth/judge-signup`, { email, password });
+    return res.data;
+  } catch (error) {
+    throw error.response?.data?.error || "Signup failed.";
+  }
+};
+

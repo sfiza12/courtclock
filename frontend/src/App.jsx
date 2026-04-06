@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
 import Queue from './pages/Queue';
 import Alerts from './pages/Alerts';
 import CaseDetail from './pages/CaseDetail';
 import Analytics from './pages/Analytics';
+import Login from './pages/Login';
+import Signup from './pages/Signup';
 import Search from './pages/Search';
 import { fetchAlerts } from './api/api';
 
@@ -22,6 +24,25 @@ function App() {
     };
     loadAlertCount();
   }, []);
+
+  const location = useLocation();
+  const isLogin = location.pathname === '/login';
+  const isSignup = location.pathname === '/signup';
+  const isAuthPage = isLogin || isSignup;
+  const isAuthenticated = !!localStorage.getItem('courtclock_token');
+
+  if (!isAuthenticated && !isAuthPage) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (isAuthPage) {
+    return (
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
+      </Routes>
+    );
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#F1F5F9]">

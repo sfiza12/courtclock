@@ -91,11 +91,12 @@ SEVERITY_KEYWORD_MAP = {
 }
 
 
-def _rule_based_classify(crime_description: str) -> dict:
+def _rule_based_classify(case_data: dict) -> dict:
     """
     Rule-based fallback classifier using keyword matching.
-    Returns tags, severity label, and explanation.
+    Returns tags, severity label, and structured explanation.
     """
+    crime_description = case_data.get("crime_description", "")
     text = crime_description.lower()
     tags = set()
 
@@ -156,15 +157,61 @@ def _rule_based_classify(crime_description: str) -> dict:
         if severity_label != "minor":
             break
 
-    # Build explanation
-    tag_list = sorted(tags)
-    explanation = (
-        f"This case has been classified as '{severity_label}' severity "
-        f"based on keyword analysis. Identified categories: {', '.join(tag_list)}. "
-        f"The description indicates involvement of "
-        f"{_describe_tags(tag_list)}."
+    # Build the 'Gold-Standard' structured explanation
+    u_score = case_data.get('u_score', 0)
+    priority = case_data.get('priority_level', 'LOW')
+    detention_days = case_data.get('detention_days', 0)
+    max_years = case_data.get('max_sentence_years', 3)
+    vuln = case_data.get('vulnerability_flag', 0)
+    
+    hearings_held = case_data.get('hearings_held', 0)
+    hearing_count = case_data.get('hearing_count', 0)
+    
+    verdict_count = case_data.get('previous_verdict_count', 0)
+    verdict_summary = case_data.get('previous_verdicts_summary', 'None')
+    
+    # Paragraph 1: U-Score Breakdown
+    p1 = (
+        f"**U-Score Breakdown**: This case has received a {priority.lower()} priority U-Score of {round(u_score)}/100. "
+        f"This score is influenced by a {severity_label} severity crime classification "
+        f"and {detention_days} days of detention against a {max_years}-year maximum sentence."
     )
+    if vuln:
+        p1 += " A high vulnerability flag was also detected."
 
+    # Paragraph 2: Urgency Context & 436A Risk
+    half_sentence_days = (max_years * 365) / 2
+    if detention_days >= half_sentence_days:
+        p2 = "**Urgency Impact**: Because the accused has exceeded their half-sentence threshold, this demands immediate judicial review. Delaying this case further directly violates fundamental legal rights under Section 436A CrPC."
+    else:
+        p2 = f"**Urgency Impact**: The case sits at {round(detention_days/(max_years*365)*100)}% of its maximum sentence limit. Standard priority processing is recommended."
+        
+    # Paragraph 3: Hearing Delays
+    if hearing_count > 0:
+        rate = hearings_held / hearing_count
+        if rate < 0.5 and hearing_count > 5:
+            p3 = f"**Hearing Delays**: This case is suffering from severe adjournment abuse; out of {hearing_count} scheduled hearings, only {hearings_held} were successfully held."
+        else:
+            p3 = f"**Hearing Delays**: Hearing progression is stable ({hearings_held}/{hearing_count} hearings held)."
+    else:
+        p3 = "**Hearing Delays**: No significant hearing history available yet."
+
+    # Paragraph 4: Verdict History & Recommendation
+    if verdict_count > 0:
+        p4_verdicts = f"**Verdict History**: There have been {verdict_count} previous verdicts/orders on this case ({verdict_summary})."
+    else:
+        p4_verdicts = f"**Verdict History**: There are 0 previous verdicts on record."
+
+    if detention_days >= half_sentence_days:
+        p4_rec = "\n\n**Recommendation**: The court should urgently schedule a bail hearing under Section 436A to clear this backlog and prevent an illegal detention violation."
+    elif vuln:
+        p4_rec = "\n\n**Recommendation**: Flagged for vulnerable individual; schedule priority hearing to expedite resolution."
+    else:
+        p4_rec = "\n\n**Recommendation**: Proceed with normal scheduling protocols."
+
+    explanation = f"{p1}\n\n{p2}\n\n{p3}\n\n{p4_verdicts}{p4_rec}"
+
+    tag_list = sorted(tags)
     return {
         "tags": tag_list,
         "severity_label": severity_label,
@@ -191,7 +238,7 @@ def _describe_tags(tags: list) -> str:
     return ", ".join(parts[:-1]) + " and " + parts[-1]
 
 
-def classify_case(crime_description: str) -> dict:
+def classify_case(case_data: dict) -> dict:
     """
     Classify a case using InLegalBERT if available, else rule-based fallback.
 
@@ -203,6 +250,7 @@ def classify_case(crime_description: str) -> dict:
             "model_used": "InLegalBERT" | "rule-based"
         }
     """
+    crime_description = case_data.get("crime_description", "")
     if not crime_description or not crime_description.strip():
         return {
             "tags": ["unclassified"],
@@ -216,7 +264,7 @@ def classify_case(crime_description: str) -> dict:
         try:
             results = _classifier(crime_description[:512])
             # Combine transformer results with rule-based tags
-            rule_result = _rule_based_classify(crime_description)
+            rule_result = _rule_based_classify(case_data)
 
             # Use rule-based tags (more reliable for our domain)
             # but enhance explanation with model confidence
@@ -242,7 +290,7 @@ def classify_case(crime_description: str) -> dict:
             print(f"[NLP] Model inference failed: {e}. Falling back to rules.")
 
     # Fallback to rule-based
-    result = _rule_based_classify(crime_description)
+    result = _rule_based_classify(case_data)
     result["model_used"] = "rule-based"
     return result
 

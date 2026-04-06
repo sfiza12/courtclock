@@ -217,7 +217,20 @@ const CaseDetail = () => {
              ) : (
                <>
                  <div className="text-[14px] text-slate-700 leading-relaxed font-serif">
-                   {caseData.ai_explanation || "AI analysis not available for this case."}
+                   {caseData.ai_explanation ? (
+                     caseData.ai_explanation.split('\n\n').map((paragraph, idx) => {
+                       const boldMatch = paragraph.match(/^\*\*(.*?)\*\*:(.*)/);
+                       if (boldMatch) {
+                         return (
+                           <p key={idx} className="mb-3 last:mb-0">
+                             <span className="font-sans font-bold text-slate-900 tracking-wide text-[13px] uppercase">{boldMatch[1]}:</span>
+                             <span className="ml-1">{boldMatch[2]}</span>
+                           </p>
+                         );
+                       }
+                       return <p key={idx} className="mb-3 last:mb-0">{paragraph}</p>;
+                     })
+                   ) : "AI analysis not available for this case."}
                  </div>
                  
                  {caseData.ai_tags && caseData.ai_tags.length > 0 && (
