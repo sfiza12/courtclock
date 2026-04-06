@@ -8,6 +8,7 @@ import CaseDetail from './pages/CaseDetail';
 import Analytics from './pages/Analytics';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
+import Search from './pages/Search';
 import { fetchAlerts } from './api/api';
 
 function App() {
@@ -54,7 +55,7 @@ function App() {
             <Route path="/alerts" element={<Alerts />} />
             <Route path="/case/:id" element={<CaseDetail />} />
             <Route path="/analytics" element={<Analytics />} />
-            <Route path="/search" element={<div className="p-8 text-slate-500">Case Search (Coming Soon)</div>} />
+            <Route path="/search" element={<Search />} />
           </Routes>
         </div>
       </main>
