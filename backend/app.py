@@ -14,9 +14,12 @@ from flask_cors import CORS
 # Ensure sibling imports work
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from database import init_db, get_session, Case
+from database import init_db, get_session, Case, User
 from scoring_engine import compute_u_score
 from nlp_module import classify_case
+import bcrypt
+import jwt
+
 
 # ─── App factory ──────────────────────────────────────────────────────
 app = Flask(__name__)
@@ -33,6 +36,87 @@ def error_response(message, status=400):
     """Wrap error in { success: false, error: ... } envelope."""
     return jsonify({"success": False, "error": message}), status
 
+
+# ═══════════════════════════════════════════════════════════════════════
+#  AUTH ENDPOINTS
+# ═══════════════════════════════════════════════════════════════════════
+
+JWT_SECRET = "super_secret_jwt_key_courtclock"
+
+@app.route("/api/auth/judge-login", methods=["POST"])
+def judge_login():
+    """
+    POST /api/auth/judge-login
+    Authenticate judge using email and password.
+    """
+    data = request.json
+    email = data.get("email")
+    password = data.get("password")
+
+    if not email or not password:
+        return error_response("Email and password are required.", 400)
+
+    session = get_session()
+    try:
+        user = session.query(User).filter(User.email == email).first()
+        
+        if not user or user.role != "judge":
+            return error_response("Invalid credentials or insufficient permissions.", 401)
+        
+        # Check password
+        if not bcrypt.checkpw(password.encode('utf-8'), user.password_hash.encode('utf-8')):
+            return error_response("Invalid credentials.", 401)
+
+        # Generate JWT
+        token = jwt.encode({
+            "user_id": user.id,
+            "email": user.email,
+            "role": user.role,
+            "exp": datetime.utcnow().timestamp() + 86400 # 24 hours expiry
+        }, JWT_SECRET, algorithm="HS256")
+
+        return success_response({
+            "token": token,
+            "user": user.to_dict()
+        })
+    except Exception as e:
+        return error_response(str(e), 500)
+    finally:
+        session.close()
+
+@app.route("/api/auth/judge-signup", methods=["POST"])
+def judge_signup():
+    """
+    POST /api/auth/judge-signup
+    Register a new judge using email and password.
+    """
+    data = request.json
+    email = data.get("email")
+    password = data.get("password")
+
+    if not email or not password:
+        return error_response("Email and password are required.", 400)
+
+    session = get_session()
+    try:
+        # Check if user already exists
+        existing = session.query(User).filter(User.email == email).first()
+        if existing:
+            return error_response("An account with this email already exists.", 409)
+            
+        hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        user = User(email=email, password_hash=hashed, role="judge")
+        session.add(user)
+        session.commit()
+
+        return success_response({
+            "message": "Account created successfully. Please log in."
+        })
+    except Exception as e:
+        session.rollback()
+        return error_response(str(e), 500)
+    finally:
+        session.close()
 
 # ═══════════════════════════════════════════════════════════════════════
 #  CASE ENDPOINTS
